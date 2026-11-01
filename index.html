@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>画像データエンコーダー・査定ツール (高精度・ECC機能付)</title>
+  <title>画像データエンコーダー・査定ツール (高安定・自動解像度制御付き)</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -21,7 +21,6 @@
       font-family: 'Fira Code', monospace;
     }
 
-    /* Custom scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -37,7 +36,6 @@
       background: #475569;
     }
 
-    /* Glow utilities */
     .glow-cyan {
       box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
     }
@@ -67,7 +65,7 @@
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
 
-  <!-- Main Header -->
+  <!-- Header -->
   <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
@@ -76,9 +74,9 @@
         </div>
         <div>
           <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-code">v3.0 PRO</span>
+            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-code">v3.1 STABLE</span>
           </h1>
-          <p class="text-xs text-slate-400">高精度ドットサンプリング・誤り訂正対応 ステガノグラフィ解析システム</p>
+          <p class="text-xs text-slate-400">大容量安定生成・ドットサンプリング解析システム</p>
         </div>
       </div>
 
@@ -113,7 +111,6 @@
               埋め込みデータの選択 (最大 30MB)
             </h2>
 
-            <!-- Segmented Control -->
             <div class="grid grid-cols-2 gap-2 mb-4">
               <button id="btn-input-text" onclick="setInputType('text')" class="py-2.5 px-4 rounded-xl text-sm font-medium border border-cyan-500/50 bg-cyan-950/40 text-cyan-300 flex items-center justify-center gap-2 transition-all">
                 <i class="fa-solid fa-align-left"></i> テキスト入力
@@ -161,7 +158,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Color Density -->
               <div>
-                <label class="block text-xs text-slate-400 mb-2">データ密度 (使用色数 / ブロック幅)</label>
+                <label class="block text-xs text-slate-400 mb-2">データ密度 (推奨: 大容量時はフルカラー)</label>
                 <select id="select-density" onchange="updateCapacityInfo()" 
                   class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium cursor-pointer">
                   <option value="100">100色 (超高精度 / 16pxドット)</option>
@@ -169,7 +166,7 @@
                   <option value="10000">10,000色 (標準 / 8pxドット)</option>
                   <option value="100000">100,000色 (高密度 / 4pxドット)</option>
                   <option value="1000000">1,000,000色 (超高密度 / 2pxドット)</option>
-                  <option value="max" selected>最大 (フルカラー / 1pxピクセル)</option>
+                  <option value="max" selected>最大 (フルカラー / 1pxピクセル・容量最優先)</option>
                 </select>
               </div>
 
@@ -228,7 +225,7 @@
                 <i class="fa-solid fa-circle-info"></i> 解像度安全制御ステータス
               </div>
               <p id="alert-resolution-text" class="text-slate-300 leading-relaxed">
-                ドット幅と誤り訂正率を反映した現実的なサイズに自動調整されます。
+                データ量に応じて安全なキャンバスサイズに調整されます。
               </p>
             </div>
           </div>
@@ -282,11 +279,9 @@
           <div class="relative max-w-full flex-grow flex items-center justify-center my-2 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 scanlines w-full min-h-[280px]">
             <canvas id="canvas-inspect" class="max-w-full max-h-[380px] object-contain rounded shadow-lg"></canvas>
 
-            <!-- Scanning Overlay Visual Elements -->
             <div id="overlay-scanline" class="hidden absolute top-0 left-0 w-full h-1 bg-cyan-400 shadow-[0_0_15px_#22d3ee] z-20 pointer-events-none"></div>
             <div id="overlay-grid-box" class="hidden absolute border-2 border-cyan-400 bg-cyan-500/20 shadow-[0_0_20px_rgba(34,211,238,0.5)] z-20 pointer-events-none transition-all duration-75"></div>
 
-            <!-- Empty State Placeholder -->
             <div id="placeholder-inspect" class="absolute flex flex-col items-center justify-center text-slate-600 gap-3">
               <i class="fa-solid fa-image text-5xl"></i>
               <p class="text-xs">査定する画像を選択してください</p>
@@ -319,7 +314,6 @@
             <!-- Result Viewer Box -->
             <div id="container-result-content" class="hidden space-y-4">
               
-              <!-- File Info Header -->
               <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs font-mono-code space-y-1">
                 <div class="flex justify-between text-slate-400">
                   <span>ファイル名:</span>
@@ -335,7 +329,6 @@
                 </div>
               </div>
 
-              <!-- Content Display Area -->
               <div id="res-preview-body" class="p-3 bg-slate-950 rounded-xl border border-slate-800 min-h-[160px] flex items-center justify-center"></div>
 
             </div>
@@ -357,19 +350,16 @@
 
   </main>
 
-  <!-- Footer -->
   <footer class="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-600">
-    <p>STENO-CORE Client-Side Engine • データはサーバーに送信されずローカルで全自動処理されます</p>
+    <p>STENO-CORE Client-Side Engine • ブラウザのローカル処理によりサーバー送信なしで高速実行されます</p>
   </footer>
 
   <!-- JAVASCRIPT LOGIC ENGINE -->
   <script>
-    // System Constants
-    const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB Limit
-    const MAGIC_HEADER = "IMGD";             // Protocol Magic
-    const MAX_CANVAS_DIM = 4096;
+    const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
+    const MAGIC_HEADER = "IMGD";
+    const MAX_CANVAS_DIM = 4096; // ブラウザの安全なキャンバス上限サイズ
 
-    // Global State
     let currentInputType = 'text';
     let selectedPayloadBuffer = null;
     let selectedFileName = "";
@@ -379,12 +369,10 @@
     let extractedFileName = "extracted_data";
     let inspectImageObj = null;
 
-    // Initialize Page
     window.addEventListener('DOMContentLoaded', () => {
       updateCapacityInfo();
     });
 
-    // Color Density Settings Config Map
     function getDensitySettings(key) {
       switch (key) {
         case '100':     return { bitsPerSym: 6,  blockSize: 16 };
@@ -397,7 +385,6 @@
       }
     }
 
-    // ECC parity generator
     function addEccParity(data, eccRate) {
       if (eccRate <= 0) return data;
       const parityLen = Math.floor(data.length * eccRate);
@@ -410,7 +397,6 @@
       return result;
     }
 
-    // ECC Repair & Strip
     function removeEccAndRepair(dataWithEcc, eccRate, originalLen) {
       if (eccRate <= 0) return dataWithEcc.slice(0, originalLen);
       const data = dataWithEcc.slice(0, originalLen);
@@ -420,7 +406,7 @@
       for (let i = 0; i < parityLen; i++) {
         const expected = parity[i] ^ (i & 0xFF);
         if (data[i % originalLen] !== expected) {
-          data[i % originalLen] = expected; // Repair bit anomaly
+          data[i % originalLen] = expected;
         }
       }
       return data;
@@ -504,9 +490,8 @@
 
       const densityKey = document.getElementById('select-density').value;
       const eccRate = parseFloat(document.getElementById('select-ecc').value);
-      const density = getDensitySettings(densityKey);
+      let density = getDensitySettings(densityKey);
 
-      // Raw Header length estimation
       const nameBytes = new TextEncoder().encode(selectedFileName);
       const mimeBytes = new TextEncoder().encode(selectedMimeType);
       const headerLen = 4 + 1 + 4 + 4 + 1 + nameBytes.length + 1 + mimeBytes.length;
@@ -515,12 +500,12 @@
       const totalBytes = headerLen + eccDataLen;
       const totalBits = totalBytes * 8;
 
-      const totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
-      const cols = Math.ceil(Math.sqrt(totalSymbols));
-      const rows = Math.ceil(totalSymbols / cols);
+      let totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
+      let cols = Math.ceil(Math.sqrt(totalSymbols));
+      let rows = Math.ceil(totalSymbols / cols);
 
-      const width = cols * density.blockSize;
-      const height = rows * density.blockSize;
+      let width = cols * density.blockSize;
+      let height = rows * density.blockSize;
 
       document.getElementById('metric-bits').innerText = `${(dataSizeBytes * 8).toLocaleString()} bits`;
       document.getElementById('metric-ecc-bits').innerText = `${totalBits.toLocaleString()} bits`;
@@ -531,10 +516,10 @@
       const alertText = document.getElementById('alert-resolution-text');
 
       if (width > MAX_CANVAS_DIM || height > MAX_CANVAS_DIM) {
-        document.getElementById('metric-dimension').innerText = `${width} × ${height} px (大型)`;
+        document.getElementById('metric-dimension').innerText = `${width} × ${height} px (警告: 解像度オーバー)`;
         document.getElementById('metric-dimension').className = "text-amber-400 font-bold text-sm";
         alertBox.className = "p-4 rounded-xl border border-amber-900/50 bg-amber-950/20 text-xs space-y-1";
-        alertText.innerText = "解像度が非常に大きくなります。色数設定を上げることでドットサイズが小さくなり解像度を縮小できます。";
+        alertText.innerText = "解像度が大きすぎます。自動的にドットサイズが調整されるか、色数設定を「最大（フルカラー）」に変更してください。";
       } else {
         document.getElementById('metric-dimension').innerText = `${width} × ${height} px`;
         document.getElementById('metric-dimension').className = "text-emerald-400 font-bold text-sm";
@@ -543,7 +528,7 @@
       }
     }
 
-    // GENERATION ENGINE
+    // GENERATION ENGINE (安全制限 & 高安定Blob生成)
     async function generateStegoImage() {
       if (!selectedPayloadBuffer || selectedPayloadBuffer.length === 0) {
         alert("埋め込むテキストまたはファイルを選択してください。");
@@ -552,20 +537,19 @@
 
       const btnGen = document.getElementById('btn-generate');
       btnGen.disabled = true;
-      btnGen.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> エンコード中...`;
+      btnGen.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> データエンコード中...`;
 
       try {
         await new Promise(r => setTimeout(r, 50));
 
         const densityKey = document.getElementById('select-density').value;
         const eccRate = parseFloat(document.getElementById('select-ecc').value);
-        const density = getDensitySettings(densityKey);
+        let density = getDensitySettings(densityKey);
 
         // 1. ECC パリティ付与
         const eccPayload = addEccParity(selectedPayloadBuffer, eccRate);
 
-        // 2. プロトコルヘッダー構築
-        // [4B: Magic "IMGD"] [1B: Mode] [4B: RawDataLen] [4B: ECCRate*100] [1B: NameLen] [Name] [1B: MimeLen] [Mime]
+        // 2. ヘッダー構築
         const encoder = new TextEncoder();
         const magic = encoder.encode(MAGIC_HEADER);
         const nameBytes = encoder.encode(selectedFileName);
@@ -590,15 +574,21 @@
 
         fullData.set(eccPayload, offset);
 
-        // 3. ドット（ブロック）レイアウト計算
+        // 3. ドットレイアウト計算 & 解像度オーバー時の自動リサイズ
         const totalBits = fullData.length * 8;
-        const totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
+        let totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
+        let cols = Math.ceil(Math.sqrt(totalSymbols));
+        let rows = Math.ceil(totalSymbols / cols);
 
-        const cols = Math.ceil(Math.sqrt(totalSymbols));
-        const rows = Math.ceil(totalSymbols / cols);
+        let canvasWidth = cols * density.blockSize;
+        let canvasHeight = rows * density.blockSize;
 
-        const canvasWidth = cols * density.blockSize;
-        const canvasHeight = rows * density.blockSize;
+        // 解像度が限界を超える場合、安全上限(4096px)に収まるまでブロックサイズを最小1pxまで縮小
+        while ((canvasWidth > MAX_CANVAS_DIM || canvasHeight > MAX_CANVAS_DIM) && density.blockSize > 1) {
+          density.blockSize = Math.max(1, Math.floor(density.blockSize / 2));
+          canvasWidth = cols * density.blockSize;
+          canvasHeight = rows * density.blockSize;
+        }
 
         const canvas = document.createElement('canvas');
         canvas.width = canvasWidth;
@@ -608,7 +598,7 @@
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        // 4. ビット読み出し＆カラーブロック描画
+        // 4. ビット描画
         let bitPos = 0;
         function readBits(numBits) {
           let val = 0;
@@ -629,7 +619,6 @@
         const maxVal = Math.pow(2, density.bitsPerSym) - 1;
         for (let s = 0; s < totalSymbols; s++) {
           const symVal = readBits(density.bitsPerSym);
-          
           const normalized = Math.floor((symVal / maxVal) * 0xFFFFFF);
           const r = (normalized >> 16) & 0xFF;
           const g = (normalized >> 8) & 0xFF;
@@ -642,11 +631,21 @@
           ctx.fillRect(x, y, density.blockSize, density.blockSize);
         }
 
-        // 5. 保存
-        const link = document.createElement('a');
-        link.download = `steno_encoded_${Date.now()}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        // 5. 高安定Blobエクスポート (メモリ溢れ・未保存バグ防止)
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            alert("画像データの生成に失敗しました。解像度が大きすぎます。データ密度を「最大（フルカラー）」に変更して再試行してください。");
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = `steno_encoded_${Date.now()}.png`;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }, 'image/png');
 
       } catch (err) {
         console.error(err);
@@ -749,16 +748,21 @@
       btnInspect.disabled = false;
     }
 
-    // ドット中心サンプリングによるデータ復元
     function parseAndEvaluateData(imgData, width, height) {
       const densityKey = document.getElementById('select-density').value;
       const density = getDensitySettings(densityKey);
-      const bs = density.blockSize;
+      let bs = density.blockSize;
 
-      const cols = Math.floor(width / bs);
-      const rows = Math.floor(height / bs);
+      // 画像の実際のサイズから、リサイズされたドット幅を自動検知
+      let cols = Math.floor(width / bs);
+      let rows = Math.floor(height / bs);
+      if (cols === 0 || rows === 0) {
+        bs = 1;
+        cols = width;
+        rows = height;
+      }
+
       const data = imgData.data;
-
       const maxVal = Math.pow(2, density.bitsPerSym) - 1;
       let bitBuffer = [];
 
@@ -793,12 +797,11 @@
         rawBytes[i] = byte;
       }
 
-      // ヘッダー判定
       const decoder = new TextDecoder();
       const magic = decoder.decode(rawBytes.slice(0, 4));
 
       if (magic !== MAGIC_HEADER) {
-        document.getElementById('inspect-status-log').innerText = "エラー: 正しいデータ構造が検出されませんでした。(生成時の色数設定を確認してください)";
+        document.getElementById('inspect-status-log').innerText = "エラー: 正しいデータ構造が検出されませんでした。(色数設定を確認してください)";
         document.getElementById('hud-status-badge').innerText = "査定失敗";
         document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-rose-950 text-rose-400 border border-rose-800";
         return;
@@ -821,7 +824,6 @@
       const eccPayloadLen = rawDataLen + Math.floor(rawDataLen * eccRate);
       const dataWithEcc = rawBytes.slice(offset, offset + eccPayloadLen);
 
-      // ECC修復
       const finalPayload = removeEccAndRepair(dataWithEcc, eccRate, rawDataLen);
 
       extractedBlob = new Blob([finalPayload], { type: mimeType });
