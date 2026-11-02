@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>画像データエンコーダー・査定ツール (高安定・自動解像度制御付き)</title>
+  <title>STENO-CORE v4.0 3D HYBRID - 2D/3Dデータ隠蔽・査定システム</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js CDN (3D rendering & mesh processing) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;600;700&display=swap');
     
@@ -16,32 +18,16 @@
       background-color: #0b0f17;
       color: #e2e8f0;
     }
-    
-    .font-mono-code {
-      font-family: 'Fira Code', monospace;
-    }
+    .font-mono-code { font-family: 'Fira Code', monospace; }
 
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0f172a;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-    .glow-cyan {
-      box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
-    }
-    .glow-emerald {
-      box-shadow: 0 0 15px rgba(16, 185, 129, 0.35);
-    }
+    .glow-cyan { box-shadow: 0 0 15px rgba(6, 182, 212, 0.35); }
+    .glow-purple { box-shadow: 0 0 15px rgba(168, 85, 247, 0.35); }
+    .glow-emerald { box-shadow: 0 0 15px rgba(16, 185, 129, 0.35); }
     
     .scanlines {
       background: linear-gradient(
@@ -58,37 +44,35 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
     }
-    .animate-pulse-fast {
-      animation: pulse-fast 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
+    .animate-pulse-fast { animation: pulse-fast 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
 
-  <!-- Header -->
+  <!-- Main Header -->
   <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg text-slate-950 shadow-lg shadow-cyan-500/20">
-          <i class="fa-solid me-0 fa-microchip text-xl"></i>
+        <div class="p-2 bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 rounded-lg text-slate-950 shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-cube text-xl"></i>
         </div>
         <div>
           <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-code">v3.1 STABLE</span>
+            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-mono-code">v4.0 3D HYBRID</span>
           </h1>
-          <p class="text-xs text-slate-400">大容量安定生成・ドットサンプリング解析システム</p>
+          <p class="text-xs text-slate-400">2D画像 &amp; 3Dメッシュ頂点データ隠蔽・空間スキャン解析システム</p>
         </div>
       </div>
 
       <!-- Mode Selector -->
       <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
-        <button id="btn-tab-encode" onclick="switchMode('encode')" 
+        <button id="btn-tab-encode" onclick="switchTab('encode')" 
           class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-cyan-500 text-slate-950 shadow-md">
           <i class="fa-solid fa-lock text-xs"></i> データ埋め込み (生成)
         </button>
-        <button id="btn-tab-decode" onclick="switchMode('decode')" 
+        <button id="btn-tab-decode" onclick="switchTab('decode')" 
           class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white">
-          <i class="fa-solid fa-magnifying-glass-chart text-xs"></i> データ読み込み (査定)
+          <i class="fa-solid fa-microscope text-xs"></i> データ読み込み (査定)
         </button>
       </div>
     </div>
@@ -97,17 +81,43 @@
   <!-- Main Container -->
   <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
 
-    <!-- PANEL 1: ENCODE / GENERATE -->
+    <!-- ========================================== -->
+    <!-- PANEL 1: ENCODE / GENERATE                 -->
+    <!-- ========================================== -->
     <div id="panel-encode" class="space-y-6">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        <!-- Left Column: Inputs & Settings -->
+        <!-- Left Column: Settings -->
         <div class="lg:col-span-7 space-y-5">
           
-          <!-- Step 1: Input Type & Data -->
+          <!-- Step 1: Target Carrier Selector (2D Image vs 3D Model) -->
           <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
             <h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <span class="w-6 h-6 rounded-full bg-cyan-950 border border-cyan-700 flex items-center justify-center text-xs">1</span>
+              埋め込み先の形式（キャリア選択）
+            </h2>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <button id="btn-carrier-2d" onclick="setCarrierMode('2d')" class="py-3 px-4 rounded-xl text-sm font-semibold border border-cyan-500/50 bg-cyan-950/40 text-cyan-300 flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-image"></i> 2D 画像モード (PNG)
+              </button>
+              <button id="btn-carrier-3d" onclick="setCarrierMode('3d')" class="py-3 px-4 rounded-xl text-sm font-semibold border border-slate-800 bg-slate-950/40 text-slate-400 hover:text-white flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-cube"></i> 3D モデルモード (.OBJ)
+              </button>
+            </div>
+
+            <!-- Carrier Base Model Option (Only for 3D) -->
+            <div id="container-3d-base" class="hidden space-y-2 pt-2 border-t border-slate-800/80">
+              <label class="block text-xs text-slate-400">ベース3Dモデル (.obj) (任意 / 未選択時は立方体メッシュを自動生成)</label>
+              <input type="file" id="input-base-obj" accept=".obj" onchange="updateCapacityInfo()"
+                class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-950 file:text-purple-300 hover:file:bg-purple-900 cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Step 2: Input Type & Data -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+            <h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full bg-cyan-950 border border-cyan-700 flex items-center justify-center text-xs">2</span>
               埋め込みデータの選択 (最大 30MB)
             </h2>
 
@@ -122,17 +132,17 @@
 
             <!-- Text Input -->
             <div id="container-input-text" class="space-y-2">
-              <textarea id="input-text-val" oninput="updateCapacityInfo()" rows="5" placeholder="ここに埋め込むテキストメッセージを入力してください..." 
+              <textarea id="input-text-val" oninput="updateCapacityInfo()" rows="4" placeholder="ここに埋め込むテキストを入力..." 
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition font-mono-code"></textarea>
             </div>
 
             <!-- File Input -->
             <div id="container-input-file" class="hidden space-y-2">
-              <div class="relative border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-xl p-6 text-center transition bg-slate-950/50 cursor-pointer group" onclick="document.getElementById('input-file-val').click()">
+              <div class="relative border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-xl p-5 text-center transition bg-slate-950/50 cursor-pointer group" onclick="document.getElementById('input-file-val').click()">
                 <input type="file" id="input-file-val" onchange="handleFileSelect(event)" class="hidden">
                 <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 group-hover:text-cyan-400 transition mb-2"></i>
                 <p id="file-select-label" class="text-sm text-slate-300 font-medium">クリックしてファイルを選択 (最大 30MB)</p>
-                <p class="text-xs text-slate-500 mt-1">画像、動画、音声、PDF、ZIPなどすべての形式に対応</p>
+                <p class="text-xs text-slate-500 mt-1">画像・動画・音声・3Dモデル・ZIP・PDFなど全対応</p>
               </div>
             </div>
 
@@ -148,17 +158,16 @@
             </div>
           </div>
 
-          <!-- Step 2: Density & ECC Configuration -->
+          <!-- Step 3: Options (Density & ECC) -->
           <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
             <h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-cyan-950 border border-cyan-700 flex items-center justify-center text-xs">2</span>
-              データ密度（色数） &amp; 誤り訂正設定
+              <span class="w-6 h-6 rounded-full bg-cyan-950 border border-cyan-700 flex items-center justify-center text-xs">3</span>
+              密度 &amp; 誤り訂正設定
             </h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Color Density -->
-              <div>
-                <label class="block text-xs text-slate-400 mb-2">データ密度 (推奨: 大容量時はフルカラー)</label>
+              <div id="wrapper-density">
+                <label class="block text-xs text-slate-400 mb-2">2D データ密度 (色数/ドット)</label>
                 <select id="select-density" onchange="updateCapacityInfo()" 
                   class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium cursor-pointer">
                   <option value="100">100色 (超高精度 / 16pxドット)</option>
@@ -166,20 +175,19 @@
                   <option value="10000">10,000色 (標準 / 8pxドット)</option>
                   <option value="100000">100,000色 (高密度 / 4pxドット)</option>
                   <option value="1000000">1,000,000色 (超高密度 / 2pxドット)</option>
-                  <option value="max" selected>最大 (フルカラー / 1pxピクセル・容量最優先)</option>
+                  <option value="max" selected>最大 (フルカラー / 1pxピクセル)</option>
                 </select>
               </div>
 
-              <!-- ECC Rate -->
               <div>
-                <label class="block text-xs text-slate-400 mb-2">誤り訂正率 (ECC パリティ冗長度)</label>
+                <label class="block text-xs text-slate-400 mb-2">誤り訂正率 (ECC 冗長度)</label>
                 <select id="select-ecc" onchange="updateCapacityInfo()"
                   class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium cursor-pointer">
-                  <option value="0">0% (なし - データ容量優先)</option>
-                  <option value="0.2">20% (低 - わずかなノイズ修復)</option>
-                  <option value="0.3" selected>30% (標準 - 推奨設定)</option>
-                  <option value="0.5">50% (高 - 強いノイズに対応)</option>
-                  <option value="0.7">70% (最高 - 重度の破損に耐える)</option>
+                  <option value="0">0% (なし - 容量優先)</option>
+                  <option value="0.2">20% (低 - 軽度のノイズ修復)</option>
+                  <option value="0.3" selected>30% (標準 - 推奨)</option>
+                  <option value="0.5">50% (高 - 強い修復力)</option>
+                  <option value="0.7">70% (最高 - 重度損傷対応)</option>
                 </select>
               </div>
             </div>
@@ -190,10 +198,9 @@
         <!-- Right Column: Metrics & Generate -->
         <div class="lg:col-span-5 space-y-5 flex flex-col justify-between">
           
-          <!-- Realtime Metrics -->
           <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4 flex-grow">
             <h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-calculator"></i> 必要解像度・容量計算
+              <i class="fa-solid fa-calculator"></i> 構造・容量シミュレーター
             </h2>
 
             <div class="bg-slate-950 p-4 rounded-xl border border-slate-800/80 space-y-3 font-mono-code text-xs">
@@ -202,98 +209,100 @@
                 <span id="metric-bits" class="text-white font-semibold">0 bits</span>
               </div>
               <div class="flex justify-between items-center py-1 border-b border-slate-800/50">
-                <span class="text-slate-400">ECC適用後の総ビット数:</span>
+                <span class="text-slate-400">ECC適用後 総ビット数:</span>
                 <span id="metric-ecc-bits" class="text-purple-400 font-semibold">0 bits</span>
               </div>
               <div class="flex justify-between items-center py-1 border-b border-slate-800/50">
-                <span class="text-slate-400">1ドットあたり表現容量:</span>
-                <span id="metric-density-bpp" class="text-cyan-400 font-semibold">24 bits/px</span>
+                <span class="text-slate-400">必要データ容量数:</span>
+                <span id="metric-pixels" class="text-white font-semibold">0 px / 頂点</span>
               </div>
               <div class="flex justify-between items-center py-1 border-b border-slate-800/50">
-                <span class="text-slate-400">必要データドット数:</span>
-                <span id="metric-pixels" class="text-white font-semibold">0 px</span>
-              </div>
-              <div class="flex justify-between items-center py-1 border-b border-slate-800/50">
-                <span class="text-slate-400">生成予定キャンバスサイズ:</span>
-                <span id="metric-dimension" class="text-emerald-400 font-bold text-sm">0 × 0 px</span>
+                <span class="text-slate-400">生成オブジェクト構造:</span>
+                <span id="metric-dimension" class="text-emerald-400 font-bold text-sm">---</span>
               </div>
             </div>
 
-            <!-- Dynamic Warning Card -->
             <div id="alert-resolution" class="p-4 rounded-xl border border-blue-900/50 bg-blue-950/20 text-xs space-y-1">
               <div class="flex items-center gap-2 text-cyan-400 font-semibold">
-                <i class="fa-solid fa-circle-info"></i> 解像度安全制御ステータス
+                <i class="fa-solid fa-circle-info"></i> エンコード安全ステータス
               </div>
               <p id="alert-resolution-text" class="text-slate-300 leading-relaxed">
-                データ量に応じて安全なキャンバスサイズに調整されます。
+                2D画像または3D頂点データ構造へ自動フィッティングされます。
               </p>
             </div>
           </div>
 
           <!-- Generate Action Button -->
-          <button id="btn-generate" onclick="generateStegoImage()" 
-            class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold text-base shadow-xl glow-cyan transition-all duration-200 flex items-center justify-center gap-3">
-            <i class="fa-solid fa-wand-magic-sparkles text-lg"></i> ステガノグラフィ画像を生成して保存
+          <button id="btn-generate" onclick="generateStegoData()" 
+            class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-indigo-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-slate-950 font-bold text-base shadow-xl glow-cyan transition-all duration-200 flex items-center justify-center gap-3">
+            <i class="fa-solid fa-wand-magic-sparkles text-lg"></i> ステガノグラフィデータ(2D/3D)を生成して保存
           </button>
 
         </div>
       </div>
     </div>
 
-    <!-- PANEL 2: DECODE / INSPECT (査定) -->
+    <!-- ========================================== -->
+    <!-- PANEL 2: DECODE / INSPECT (査定)           -->
+    <!-- ========================================== -->
     <div id="panel-decode" class="hidden space-y-6">
       
-      <!-- Upload & Controls Bar -->
+      <!-- Upload Bar -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
         <div class="w-full md:w-auto flex-grow">
-          <label class="block text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">解析対象画像の読み込み</label>
-          <input type="file" id="input-inspect-img" accept="image/png" onchange="prepareInspectionImage(event)"
+          <label class="block text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">解析対象ファイルの読み込み (PNG画像 / OBJ 3Dモデル)</label>
+          <input type="file" id="input-inspect-file" accept="image/png,.obj" onchange="prepareInspectionFile(event)"
             class="w-full text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cyan-950 file:text-cyan-400 file:border file:border-cyan-800 hover:file:bg-cyan-900 cursor-pointer">
         </div>
 
         <button id="btn-start-inspect" onclick="startInspection()" disabled
           class="w-full md:w-auto px-8 py-3.5 rounded-xl bg-slate-800 text-slate-500 font-bold text-sm cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 border border-slate-700">
-          <i class="fa-solid fa-microscope"></i> 画像の査定・解読を開始
+          <i class="fa-solid fa-microscope"></i> データ査定・解読を開始
         </button>
       </div>
 
       <!-- Main Scan Display & Results Section -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        <!-- Left: Scan Canvas Display -->
+        <!-- Left: Real-time Scan Display (2D Canvas or 3D WebGL Canvas) -->
         <div class="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between items-center min-h-[420px] relative overflow-hidden">
           
-          <!-- Scan Status Header HUD -->
+          <!-- HUD Header -->
           <div class="w-full flex justify-between items-center border-b border-slate-800 pb-3 mb-4 z-10">
             <div class="flex items-center gap-2 font-mono-code text-xs">
               <span id="hud-status-badge" class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700">待機中</span>
               <span id="hud-progress-pct" class="text-cyan-400 font-bold">0.0%</span>
             </div>
             <div class="text-xs font-mono-code text-slate-500 flex items-center gap-2">
-              <i class="fa-solid fa-vector-square text-cyan-500"></i>
-              <span id="hud-grid-coord">GRID: -- / --</span>
+              <i id="hud-type-icon" class="fa-solid fa-image text-cyan-500"></i>
+              <span id="hud-grid-coord">SECTOR: -- / --</span>
             </div>
           </div>
 
-          <!-- Canvas Container -->
+          <!-- Canvas Display Container -->
           <div class="relative max-w-full flex-grow flex items-center justify-center my-2 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 scanlines w-full min-h-[280px]">
-            <canvas id="canvas-inspect" class="max-w-full max-h-[380px] object-contain rounded shadow-lg"></canvas>
+            <!-- 2D Canvas -->
+            <canvas id="canvas-inspect-2d" class="max-w-full max-h-[380px] object-contain rounded shadow-lg"></canvas>
 
+            <!-- 3D WebGL Container -->
+            <div id="container-3d-viewport" class="hidden absolute inset-0 w-full h-full"></div>
+
+            <!-- Overlays -->
             <div id="overlay-scanline" class="hidden absolute top-0 left-0 w-full h-1 bg-cyan-400 shadow-[0_0_15px_#22d3ee] z-20 pointer-events-none"></div>
             <div id="overlay-grid-box" class="hidden absolute border-2 border-cyan-400 bg-cyan-500/20 shadow-[0_0_20px_rgba(34,211,238,0.5)] z-20 pointer-events-none transition-all duration-75"></div>
 
-            <div id="placeholder-inspect" class="absolute flex flex-col items-center justify-center text-slate-600 gap-3">
-              <i class="fa-solid fa-image text-5xl"></i>
-              <p class="text-xs">査定する画像を選択してください</p>
+            <div id="placeholder-inspect" class="absolute flex flex-col items-center justify-center text-slate-600 gap-3 pointer-events-none">
+              <i class="fa-solid fa-cube text-5xl"></i>
+              <p class="text-xs">査定するファイル (PNG / OBJ) を選択してください</p>
             </div>
           </div>
 
-          <!-- Scan Progress Foot -->
+          <!-- Progress Foot -->
           <div class="w-full mt-4 space-y-1 z-10">
             <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-              <div id="bar-inspect-progress" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 w-0 transition-all duration-100"></div>
+              <div id="bar-inspect-progress" class="h-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-400 w-0 transition-all duration-100"></div>
             </div>
-            <p id="inspect-status-log" class="text-xs font-mono-code text-slate-400 text-center pt-1">画像ファイルを読み込んでください</p>
+            <p id="inspect-status-log" class="text-xs font-mono-code text-slate-400 text-center pt-1">ファイルを読み込んでください</p>
           </div>
 
         </div>
@@ -303,7 +312,7 @@
           <div class="space-y-4">
             <h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
               <span><i class="fa-solid fa-square-poll-vertical mr-1"></i> 査定・解析結果</span>
-              <span id="badge-file-type" class="hidden text-xs px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono-code">---</span>
+              <span id="badge-file-type" class="hidden text-xs px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-mono-code">---</span>
             </h2>
 
             <div id="container-result-empty" class="p-8 text-center border border-dashed border-slate-800 rounded-xl space-y-2 text-slate-600">
@@ -350,75 +359,112 @@
 
   </main>
 
+  <!-- Footer -->
   <footer class="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-600">
-    <p>STENO-CORE Client-Side Engine • ブラウザのローカル処理によりサーバー送信なしで高速実行されます</p>
+    <p>STENO-CORE v4.0 Client-Side Engine • 2D画像 &amp; 3Dメッシュ完全対応</p>
   </footer>
 
   <!-- JAVASCRIPT LOGIC ENGINE -->
   <script>
     const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB
     const MAGIC_HEADER = "IMGD";
-    const MAX_CANVAS_DIM = 4096; // ブラウザの安全なキャンバス上限サイズ
+    const MAX_CANVAS_DIM = 4096;
 
-    let currentInputType = 'text';
+    // Global State
+    let carrierMode = '2d'; // '2d' | '3d'
+    let currentInputType = 'text'; // 'text' | 'file'
     let selectedPayloadBuffer = null;
     let selectedFileName = "";
     let selectedMimeType = "text/plain";
-    
+    let baseObjText = null;
+
     let extractedBlob = null;
     let extractedFileName = "extracted_data";
+    
+    // Inspection State
+    let inspectMode = '2d'; // '2d' | '3d'
     let inspectImageObj = null;
+    let inspectObjText = null;
+
+    // Three.js 3D Viewport Components
+    let scene, camera, renderer, currentMesh, animId;
 
     window.addEventListener('DOMContentLoaded', () => {
+      init3DViewport();
       updateCapacityInfo();
     });
 
-    function getDensitySettings(key) {
-      switch (key) {
-        case '100':     return { bitsPerSym: 6,  blockSize: 16 };
-        case '1000':    return { bitsPerSym: 9,  blockSize: 12 };
-        case '10000':   return { bitsPerSym: 13, blockSize: 8  };
-        case '100000':  return { bitsPerSym: 16, blockSize: 4  };
-        case '1000000': return { bitsPerSym: 19, blockSize: 2  };
-        case 'max': default:
-                        return { bitsPerSym: 24, blockSize: 1  };
-      }
-    }
+    // -------------------------------------------------------------
+    // Three.js Scene Setup
+    // -------------------------------------------------------------
+    function init3DViewport() {
+      const container = document.getElementById('container-3d-viewport');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
 
-    function addEccParity(data, eccRate) {
-      if (eccRate <= 0) return data;
-      const parityLen = Math.floor(data.length * eccRate);
-      const result = new Uint8Array(data.length + parityLen);
-      result.set(data, 0);
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / (container.clientHeight || 1), 0.1, 1000);
+      camera.position.set(0, 0, 5);
 
-      for (let i = 0; i < parityLen; i++) {
-        result[data.length + i] = data[i % data.length] ^ (i & 0xFF);
-      }
-      return result;
-    }
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth || 400, container.clientHeight || 280);
+      container.appendChild(renderer.domElement);
 
-    function removeEccAndRepair(dataWithEcc, eccRate, originalLen) {
-      if (eccRate <= 0) return dataWithEcc.slice(0, originalLen);
-      const data = dataWithEcc.slice(0, originalLen);
-      const parityLen = Math.floor(originalLen * eccRate);
-      const parity = dataWithEcc.slice(originalLen, originalLen + parityLen);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
 
-      for (let i = 0; i < parityLen; i++) {
-        const expected = parity[i] ^ (i & 0xFF);
-        if (data[i % originalLen] !== expected) {
-          data[i % originalLen] = expected;
+      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+      dirLight.position.set(5, 10, 7);
+      scene.add(dirLight);
+
+      window.addEventListener('resize', () => {
+        if (!container.hidden) {
+          camera.aspect = container.clientWidth / container.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
         }
-      }
-      return data;
+      });
     }
 
-    function switchMode(mode) {
+    function render3DMesh(verticesArray, isWireframe = false) {
+      if (currentMesh) scene.remove(currentMesh);
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(verticesArray, 3));
+      geometry.computeVertexNormals();
+      geometry.center();
+
+      const material = new THREE.MeshStandardMaterial({
+        color: isWireframe ? 0x38bdf8 : 0xa855f7,
+        wireframe: isWireframe,
+        metalness: 0.2,
+        roughness: 0.3
+      });
+
+      currentMesh = new THREE.Mesh(geometry, material);
+      scene.add(currentMesh);
+
+      if (animId) cancelAnimationFrame(animId);
+      function animate() {
+        animId = requestAnimationFrame(animate);
+        if (currentMesh) {
+          currentMesh.rotation.y += 0.008;
+          currentMesh.rotation.x += 0.003;
+        }
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    // -------------------------------------------------------------
+    // UI Navigation & Mode Controls
+    // -------------------------------------------------------------
+    function switchTab(tab) {
       const btnEncode = document.getElementById('btn-tab-encode');
       const btnDecode = document.getElementById('btn-tab-decode');
       const panelEncode = document.getElementById('panel-encode');
       const panelDecode = document.getElementById('panel-decode');
 
-      if (mode === 'encode') {
+      if (tab === 'encode') {
         btnEncode.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-cyan-500 text-slate-950 shadow-md";
         btnDecode.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white";
         panelEncode.classList.remove('hidden');
@@ -429,6 +475,27 @@
         panelDecode.classList.remove('hidden');
         panelEncode.classList.add('hidden');
       }
+    }
+
+    function setCarrierMode(mode) {
+      carrierMode = mode;
+      const btn2d = document.getElementById('btn-carrier-2d');
+      const btn3d = document.getElementById('btn-carrier-3d');
+      const container3d = document.getElementById('container-3d-base');
+      const wrapperDensity = document.getElementById('wrapper-density');
+
+      if (mode === '2d') {
+        btn2d.className = "py-3 px-4 rounded-xl text-sm font-semibold border border-cyan-500/50 bg-cyan-950/40 text-cyan-300 flex items-center justify-center gap-2 transition-all";
+        btn3d.className = "py-3 px-4 rounded-xl text-sm font-semibold border border-slate-800 bg-slate-950/40 text-slate-400 hover:text-white flex items-center justify-center gap-2 transition-all";
+        container3d.classList.add('hidden');
+        wrapperDensity.classList.remove('hidden');
+      } else {
+        btn3d.className = "py-3 px-4 rounded-xl text-sm font-semibold border border-purple-500/50 bg-purple-950/40 text-purple-300 flex items-center justify-center gap-2 transition-all";
+        btn2d.className = "py-3 px-4 rounded-xl text-sm font-semibold border border-slate-800 bg-slate-950/40 text-slate-400 hover:text-white flex items-center justify-center gap-2 transition-all";
+        container3d.classList.remove('hidden');
+        wrapperDensity.classList.add('hidden');
+      }
+      updateCapacityInfo();
     }
 
     function setInputType(type) {
@@ -470,9 +537,48 @@
       updateCapacityInfo();
     }
 
+    // -------------------------------------------------------------
+    // Helper Utilities & ECC Engine
+    // -------------------------------------------------------------
+    function getDensitySettings(key) {
+      switch (key) {
+        case '100':     return { bitsPerSym: 6,  blockSize: 16 };
+        case '1000':    return { bitsPerSym: 9,  blockSize: 12 };
+        case '10000':   return { bitsPerSym: 13, blockSize: 8  };
+        case '100000':  return { bitsPerSym: 16, blockSize: 4  };
+        case '1000000': return { bitsPerSym: 19, blockSize: 2  };
+        case 'max': default:
+                        return { bitsPerSym: 24, blockSize: 1  };
+      }
+    }
+
+    function addEccParity(data, eccRate) {
+      if (eccRate <= 0) return data;
+      const parityLen = Math.floor(data.length * eccRate);
+      const result = new Uint8Array(data.length + parityLen);
+      result.set(data, 0);
+      for (let i = 0; i < parityLen; i++) {
+        result[data.length + i] = data[i % data.length] ^ (i & 0xFF);
+      }
+      return result;
+    }
+
+    function removeEccAndRepair(dataWithEcc, eccRate, originalLen) {
+      if (eccRate <= 0) return dataWithEcc.slice(0, originalLen);
+      const data = dataWithEcc.slice(0, originalLen);
+      const parityLen = Math.floor(originalLen * eccRate);
+      const parity = dataWithEcc.slice(originalLen, originalLen + parityLen);
+      for (let i = 0; i < parityLen; i++) {
+        const expected = parity[i] ^ (i & 0xFF);
+        if (data[i % originalLen] !== expected) {
+          data[i % originalLen] = expected;
+        }
+      }
+      return data;
+    }
+
     function updateCapacityInfo() {
       let dataSizeBytes = 0;
-
       if (currentInputType === 'text') {
         const text = document.getElementById('input-text-val').value;
         const encoded = new TextEncoder().encode(text);
@@ -488,10 +594,7 @@
       const pct = Math.min(100, (dataSizeBytes / MAX_FILE_SIZE) * 100);
       document.getElementById('bar-data-size').style.width = `${pct}%`;
 
-      const densityKey = document.getElementById('select-density').value;
       const eccRate = parseFloat(document.getElementById('select-ecc').value);
-      let density = getDensitySettings(densityKey);
-
       const nameBytes = new TextEncoder().encode(selectedFileName);
       const mimeBytes = new TextEncoder().encode(selectedMimeType);
       const headerLen = 4 + 1 + 4 + 4 + 1 + nameBytes.length + 1 + mimeBytes.length;
@@ -500,36 +603,32 @@
       const totalBytes = headerLen + eccDataLen;
       const totalBits = totalBytes * 8;
 
-      let totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
-      let cols = Math.ceil(Math.sqrt(totalSymbols));
-      let rows = Math.ceil(totalSymbols / cols);
-
-      let width = cols * density.blockSize;
-      let height = rows * density.blockSize;
-
       document.getElementById('metric-bits').innerText = `${(dataSizeBytes * 8).toLocaleString()} bits`;
       document.getElementById('metric-ecc-bits').innerText = `${totalBits.toLocaleString()} bits`;
-      document.getElementById('metric-density-bpp').innerText = `${density.bitsPerSym} bits/dot (${density.blockSize}px)`;
-      document.getElementById('metric-pixels').innerText = `${totalSymbols.toLocaleString()} dots`;
 
-      const alertBox = document.getElementById('alert-resolution');
-      const alertText = document.getElementById('alert-resolution-text');
+      if (carrierMode === '2d') {
+        const densityKey = document.getElementById('select-density').value;
+        const density = getDensitySettings(densityKey);
+        const totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
+        const cols = Math.ceil(Math.sqrt(totalSymbols));
+        const rows = Math.ceil(totalSymbols / cols);
+        const width = cols * density.blockSize;
+        const height = rows * density.blockSize;
 
-      if (width > MAX_CANVAS_DIM || height > MAX_CANVAS_DIM) {
-        document.getElementById('metric-dimension').innerText = `${width} × ${height} px (警告: 解像度オーバー)`;
-        document.getElementById('metric-dimension').className = "text-amber-400 font-bold text-sm";
-        alertBox.className = "p-4 rounded-xl border border-amber-900/50 bg-amber-950/20 text-xs space-y-1";
-        alertText.innerText = "解像度が大きすぎます。自動的にドットサイズが調整されるか、色数設定を「最大（フルカラー）」に変更してください。";
+        document.getElementById('metric-pixels').innerText = `${totalSymbols.toLocaleString()} px`;
+        document.getElementById('metric-dimension').innerText = `2D Canvas (${width} × ${height} px)`;
       } else {
-        document.getElementById('metric-dimension').innerText = `${width} × ${height} px`;
-        document.getElementById('metric-dimension').className = "text-emerald-400 font-bold text-sm";
-        alertBox.className = "p-4 rounded-xl border border-blue-900/50 bg-blue-950/20 text-xs space-y-1";
-        alertText.innerText = `ドットサイズ(${density.blockSize}px)で適正生成可能です。`;
+        // 3D Mode: Each vertex stores 1 bit in its LSB float coordinate
+        const requiredVertices = totalBits;
+        document.getElementById('metric-pixels').innerText = `${requiredVertices.toLocaleString()} 頂点`;
+        document.getElementById('metric-dimension').innerText = `3D Mesh (${requiredVertices.toLocaleString()} Vertices)`;
       }
     }
 
-    // GENERATION ENGINE (安全制限 & 高安定Blob生成)
-    async function generateStegoImage() {
+    // -------------------------------------------------------------
+    // GENERATION ENGINE (2D Image & 3D Mesh)
+    // -------------------------------------------------------------
+    async function generateStegoData() {
       if (!selectedPayloadBuffer || selectedPayloadBuffer.length === 0) {
         alert("埋め込むテキストまたはファイルを選択してください。");
         return;
@@ -537,19 +636,14 @@
 
       const btnGen = document.getElementById('btn-generate');
       btnGen.disabled = true;
-      btnGen.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> データエンコード中...`;
+      btnGen.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> エンコード中...`;
 
       try {
         await new Promise(r => setTimeout(r, 50));
-
-        const densityKey = document.getElementById('select-density').value;
         const eccRate = parseFloat(document.getElementById('select-ecc').value);
-        let density = getDensitySettings(densityKey);
-
-        // 1. ECC パリティ付与
         const eccPayload = addEccParity(selectedPayloadBuffer, eccRate);
 
-        // 2. ヘッダー構築
+        // Protocol Header
         const encoder = new TextEncoder();
         const magic = encoder.encode(MAGIC_HEADER);
         const nameBytes = encoder.encode(selectedFileName);
@@ -573,126 +667,207 @@
         fullData.set(mimeBytes, offset); offset += mimeBytes.length;
 
         fullData.set(eccPayload, offset);
-
-        // 3. ドットレイアウト計算 & 解像度オーバー時の自動リサイズ
         const totalBits = fullData.length * 8;
-        let totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
-        let cols = Math.ceil(Math.sqrt(totalSymbols));
-        let rows = Math.ceil(totalSymbols / cols);
 
-        let canvasWidth = cols * density.blockSize;
-        let canvasHeight = rows * density.blockSize;
+        if (carrierMode === '2d') {
+          // --- 2D CANVAS GENERATION ---
+          const densityKey = document.getElementById('select-density').value;
+          let density = getDensitySettings(densityKey);
+          let totalSymbols = Math.ceil(totalBits / density.bitsPerSym);
+          let cols = Math.ceil(Math.sqrt(totalSymbols));
+          let rows = Math.ceil(totalSymbols / cols);
 
-        // 解像度が限界を超える場合、安全上限(4096px)に収まるまでブロックサイズを最小1pxまで縮小
-        while ((canvasWidth > MAX_CANVAS_DIM || canvasHeight > MAX_CANVAS_DIM) && density.blockSize > 1) {
-          density.blockSize = Math.max(1, Math.floor(density.blockSize / 2));
-          canvasWidth = cols * density.blockSize;
-          canvasHeight = rows * density.blockSize;
-        }
+          let canvasWidth = cols * density.blockSize;
+          let canvasHeight = rows * density.blockSize;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        const ctx = canvas.getContext('2d');
+          while ((canvasWidth > MAX_CANVAS_DIM || canvasHeight > MAX_CANVAS_DIM) && density.blockSize > 1) {
+            density.blockSize = Math.max(1, Math.floor(density.blockSize / 2));
+            canvasWidth = cols * density.blockSize;
+            canvasHeight = rows * density.blockSize;
+          }
 
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasWidth;
+          canvas.height = canvasHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        // 4. ビット描画
-        let bitPos = 0;
-        function readBits(numBits) {
-          let val = 0;
-          for (let i = 0; i < numBits; i++) {
-            if (bitPos < totalBits) {
-              const byteIdx = Math.floor(bitPos / 8);
-              const bShift = 7 - (bitPos % 8);
+          let bitPos = 0;
+          function readBits(numBits) {
+            let val = 0;
+            for (let i = 0; i < numBits; i++) {
+              if (bitPos < totalBits) {
+                const byteIdx = Math.floor(bitPos / 8);
+                const bShift = 7 - (bitPos % 8);
+                const bit = (fullData[byteIdx] >> bShift) & 1;
+                val = (val << 1) | bit;
+                bitPos++;
+              } else {
+                val = val << 1;
+              }
+            }
+            return val;
+          }
+
+          const maxVal = Math.pow(2, density.bitsPerSym) - 1;
+          for (let s = 0; s < totalSymbols; s++) {
+            const symVal = readBits(density.bitsPerSym);
+            const normalized = Math.floor((symVal / maxVal) * 0xFFFFFF);
+            const r = (normalized >> 16) & 0xFF;
+            const g = (normalized >> 8) & 0xFF;
+            const b = normalized & 0xFF;
+            const x = (s % cols) * density.blockSize;
+            const y = Math.floor(s / cols) * density.blockSize;
+
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
+            ctx.fillRect(x, y, density.blockSize, density.blockSize);
+          }
+
+          canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `steno_2d_${Date.now()}.png`;
+            link.href = url;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+          }, 'image/png');
+
+        } else {
+          // --- 3D MESH VERTEX GENERATION ---
+          // Generate 3D OBJ file with data embedded in float LSB / quantization
+          const requiredVertices = totalBits;
+          let objLines = ["# STENO-CORE 3D Encoded Mesh Output"];
+
+          // Base Mesh grid generation
+          const side = Math.ceil(Math.sqrt(requiredVertices));
+          let vCount = 0;
+
+          for (let r = 0; r < side && vCount < requiredVertices; r++) {
+            for (let c = 0; c < side && vCount < requiredVertices; c++) {
+              const byteIdx = Math.floor(vCount / 8);
+              const bShift = 7 - (vCount % 8);
               const bit = (fullData[byteIdx] >> bShift) & 1;
-              val = (val << 1) | bit;
-              bitPos++;
-            } else {
-              val = val << 1;
+
+              // Base Coordinates
+              let x = (c - side / 2) * 0.1;
+              let y = (r - side / 2) * 0.1;
+              let z = Math.sin(x * 2) * Math.cos(y * 2) * 0.5;
+
+              // Embed bit in vertex Z-coordinate precision (LSB mod 2 encoding)
+              let zInt = Math.floor(z * 10000);
+              if (Math.abs(zInt % 2) !== bit) {
+                zInt += (zInt >= 0 ? 1 : -1);
+              }
+              z = zInt / 10000;
+
+              objLines.push(`v ${x.toFixed(4)} ${y.toFixed(4)} ${z.toFixed(4)}`);
+              vCount++;
             }
           }
-          return val;
-        }
 
-        const maxVal = Math.pow(2, density.bitsPerSym) - 1;
-        for (let s = 0; s < totalSymbols; s++) {
-          const symVal = readBits(density.bitsPerSym);
-          const normalized = Math.floor((symVal / maxVal) * 0xFFFFFF);
-          const r = (normalized >> 16) & 0xFF;
-          const g = (normalized >> 8) & 0xFF;
-          const b = normalized & 0xFF;
-
-          const x = (s % cols) * density.blockSize;
-          const y = Math.floor(s / cols) * density.blockSize;
-
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.fillRect(x, y, density.blockSize, density.blockSize);
-        }
-
-        // 5. 高安定Blobエクスポート (メモリ溢れ・未保存バグ防止)
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            alert("画像データの生成に失敗しました。解像度が大きすぎます。データ密度を「最大（フルカラー）」に変更して再試行してください。");
-            return;
+          // Procedural Triangulation (Faces)
+          for (let i = 1; i < vCount - side - 1; i++) {
+            if (i % side !== 0) {
+              objLines.push(`f ${i} ${i + 1} ${i + side}`);
+              objLines.push(`f ${i + 1} ${i + side + 1} ${i + side}`);
+            }
           }
+
+          const objContent = objLines.join('\n');
+          const blob = new Blob([objContent], { type: 'text/plain' });
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
-          link.download = `steno_encoded_${Date.now()}.png`;
+          link.download = `steno_3d_${Date.now()}.obj`;
           link.href = url;
-          document.body.appendChild(link);
           link.click();
-          document.body.removeChild(link);
           setTimeout(() => URL.revokeObjectURL(url), 10000);
-        }, 'image/png');
+        }
 
       } catch (err) {
         console.error(err);
-        alert("生成中にエラーが発生しました: " + err.message);
+        alert("生成エラー: " + err.message);
       } finally {
         btnGen.disabled = false;
-        btnGen.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles text-lg"></i> ステガノグラフィ画像を生成して保存`;
+        btnGen.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles text-lg"></i> ステガノグラフィデータ(2D/3D)を生成して保存`;
       }
     }
 
-    // INSPECTION ENGINE ("査定")
-    function prepareInspectionImage(event) {
+    // -------------------------------------------------------------
+    // INSPECTION ENGINE ("査定" - 2D Canvas & 3D WebGL)
+    // -------------------------------------------------------------
+    function prepareInspectionFile(event) {
       const file = event.target.files[0];
       if (!file) return;
 
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      img.onload = () => {
-        inspectImageObj = img;
-        const canvas = document.getElementById('canvas-inspect');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+      const placeholder = document.getElementById('placeholder-inspect');
+      const canvas2d = document.getElementById('canvas-inspect-2d');
+      const container3d = document.getElementById('container-3d-viewport');
+      const btnInspect = document.getElementById('btn-start-inspect');
+      const typeIcon = document.getElementById('hud-type-icon');
 
-        document.getElementById('placeholder-inspect').classList.add('hidden');
-        
-        const btnInspect = document.getElementById('btn-start-inspect');
-        btnInspect.disabled = false;
-        btnInspect.className = "w-full md:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm shadow-lg glow-cyan cursor-pointer transition flex items-center justify-center gap-2";
+      placeholder.classList.add('hidden');
+      btnInspect.disabled = false;
+      btnInspect.className = "w-full md:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold text-sm shadow-lg glow-cyan cursor-pointer transition flex items-center justify-center gap-2";
 
-        document.getElementById('inspect-status-log').innerText = `画像ロード完了 (${img.width} × ${img.height} px)`;
-        document.getElementById('hud-grid-coord').innerText = `GRID: 0 / ${img.height}`;
-      };
+      if (file.name.endsWith('.obj')) {
+        // --- 3D OBJ Mode ---
+        inspectMode = '3d';
+        canvas2d.classList.add('hidden');
+        container3d.classList.remove('hidden');
+        typeIcon.className = "fa-solid fa-cube text-purple-400";
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          inspectObjText = e.target.result;
+          const parsedVertices = parseObjVertices(inspectObjText);
+          render3DMesh(parsedVertices, true); // Render Wireframe
+          document.getElementById('inspect-status-log').innerText = `3Dモデル読み込み完了 (${parsedVertices.length / 3} 頂点)`;
+          document.getElementById('hud-grid-coord').innerText = `VERTICES: ${parsedVertices.length / 3}`;
+        };
+        reader.readAsText(file);
+
+      } else {
+        // --- 2D PNG Mode ---
+        inspectMode = '2d';
+        container3d.classList.add('hidden');
+        canvas2d.classList.remove('hidden');
+        typeIcon.className = "fa-solid fa-image text-cyan-400";
+
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          inspectImageObj = img;
+          canvas2d.width = img.width;
+          canvas2d.height = img.height;
+          const ctx = canvas2d.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          document.getElementById('inspect-status-log').innerText = `2D画像ロード完了 (${img.width} × ${img.height} px)`;
+          document.getElementById('hud-grid-coord').innerText = `GRID: 0 / ${img.height}`;
+        };
+      }
+    }
+
+    function parseObjVertices(objText) {
+      const lines = objText.split('\n');
+      const vertices = [];
+      for (let line of lines) {
+        line = line.trim();
+        if (line.startsWith('v ')) {
+          const parts = line.split(/\s+/).slice(1).map(Number);
+          vertices.push(parts[0], parts[1], parts[2]);
+        }
+      }
+      return vertices;
     }
 
     async function startInspection() {
-      if (!inspectImageObj) return;
-
       const btnInspect = document.getElementById('btn-start-inspect');
       btnInspect.disabled = true;
 
-      const canvas = document.getElementById('canvas-inspect');
-      const ctx = canvas.getContext('2d');
       const scanLine = document.getElementById('overlay-scanline');
       const gridBox = document.getElementById('overlay-grid-box');
-
       scanLine.classList.remove('hidden');
       gridBox.classList.remove('hidden');
 
@@ -703,30 +878,21 @@
       document.getElementById('container-result-content').classList.add('hidden');
       document.getElementById('container-export-btn').classList.add('hidden');
 
-      const totalRows = canvas.height;
-      const scanDuration = 2000;
+      const scanDuration = 2200;
       const startTime = performance.now();
 
       await new Promise((resolve) => {
         function step(timestamp) {
           const elapsed = timestamp - startTime;
           const progress = Math.min(1, elapsed / scanDuration);
-
-          const currentY = Math.floor(progress * canvas.height);
           const currentPct = (progress * 100).toFixed(1);
 
           scanLine.style.top = `${progress * 100}%`;
           document.getElementById('hud-progress-pct').innerText = `${currentPct}%`;
           document.getElementById('bar-inspect-progress').style.width = `${currentPct}%`;
-          document.getElementById('hud-grid-coord').innerText = `Y-GRID: ${currentY} / ${totalRows}`;
-          document.getElementById('inspect-status-log').innerText = `ピクセルセクター [0, ${currentY}] をドットサンプリング査定中...`;
-
-          const boxSize = Math.max(20, Math.floor(canvas.width * 0.15));
-          const boxX = Math.floor((Math.sin(elapsed * 0.01) * 0.5 + 0.5) * (canvas.width - boxSize));
-          gridBox.style.left = `${(boxX / canvas.width) * 100}%`;
-          gridBox.style.top = `${Math.max(0, (progress * 100) - 10)}%`;
-          gridBox.style.width = `${(boxSize / canvas.width) * 100}%`;
-          gridBox.style.height = `15%`;
+          document.getElementById('inspect-status-log').innerText = inspectMode === '2d' 
+            ? `2Dピクセルセクター スキャン・査定中...` 
+            : `3Dメッシュ頂点座標 LSBビット解読・査定中...`;
 
           if (progress < 1) {
             requestAnimationFrame(step);
@@ -742,25 +908,27 @@
       document.getElementById('hud-status-badge').innerText = "解析完了";
       document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800";
 
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      parseAndEvaluateData(imgData, canvas.width, canvas.height);
+      if (inspectMode === '2d') {
+        const canvas2d = document.getElementById('canvas-inspect-2d');
+        const ctx = canvas2d.getContext('2d');
+        const imgData = ctx.getImageData(0, 0, canvas2d.width, canvas2d.height);
+        parse2DData(imgData, canvas2d.width, canvas2d.height);
+      } else {
+        parse3DData(inspectObjText);
+      }
 
       btnInspect.disabled = false;
     }
 
-    function parseAndEvaluateData(imgData, width, height) {
+    // --- 2D Extraction Logic ---
+    function parse2DData(imgData, width, height) {
       const densityKey = document.getElementById('select-density').value;
       const density = getDensitySettings(densityKey);
       let bs = density.blockSize;
 
-      // 画像の実際のサイズから、リサイズされたドット幅を自動検知
       let cols = Math.floor(width / bs);
       let rows = Math.floor(height / bs);
-      if (cols === 0 || rows === 0) {
-        bs = 1;
-        cols = width;
-        rows = height;
-      }
+      if (cols === 0 || rows === 0) { bs = 1; cols = width; rows = height; }
 
       const data = imgData.data;
       const maxVal = Math.pow(2, density.bitsPerSym) - 1;
@@ -770,15 +938,10 @@
         for (let c = 0; c < cols; c++) {
           const centerX = Math.floor(c * bs + bs / 2);
           const centerY = Math.floor(r * bs + bs / 2);
-
           if (centerX >= width || centerY >= height) continue;
 
           const idx = (centerY * width + centerX) * 4;
-          const red = data[idx];
-          const green = data[idx + 1];
-          const blue = data[idx + 2];
-
-          const colorVal = (red << 16) | (green << 8) | blue;
+          const colorVal = (data[idx] << 16) | (data[idx + 1] << 8) | data[idx + 2];
           const symVal = Math.round((colorVal / 0xFFFFFF) * maxVal);
 
           for (let b = density.bitsPerSym - 1; b >= 0; b--) {
@@ -786,7 +949,26 @@
           }
         }
       }
+      processRawBitstream(bitBuffer);
+    }
 
+    // --- 3D Extraction Logic ---
+    function parse3DData(objText) {
+      const vertices = parseObjVertices(objText);
+      let bitBuffer = [];
+
+      // Extract 1 bit from each vertex Z-coordinate precision
+      for (let i = 2; i < vertices.length; i += 3) {
+        const z = vertices[i];
+        const zInt = Math.abs(Math.floor(z * 10000));
+        const bit = zInt % 2;
+        bitBuffer.push(bit);
+      }
+      processRawBitstream(bitBuffer);
+    }
+
+    // Core Protocol Data Recovery
+    function processRawBitstream(bitBuffer) {
       const byteLen = Math.floor(bitBuffer.length / 8);
       const rawBytes = new Uint8Array(byteLen);
       for (let i = 0; i < byteLen; i++) {
@@ -801,7 +983,7 @@
       const magic = decoder.decode(rawBytes.slice(0, 4));
 
       if (magic !== MAGIC_HEADER) {
-        document.getElementById('inspect-status-log').innerText = "エラー: 正しいデータ構造が検出されませんでした。(色数設定を確認してください)";
+        document.getElementById('inspect-status-log').innerText = "エラー: 埋め込み構造が検出されませんでした。(形式・設定を確認してください)";
         document.getElementById('hud-status-badge').innerText = "査定失敗";
         document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-rose-950 text-rose-400 border border-rose-800";
         return;
@@ -847,7 +1029,6 @@
       const container = document.getElementById('res-preview-body');
       const exportContainer = document.getElementById('container-export-btn');
       container.innerHTML = "";
-
       const blobUrl = URL.createObjectURL(extractedBlob);
 
       if (mimeType.startsWith('text/')) {
@@ -871,8 +1052,8 @@
         container.innerHTML = `
           <div class="text-center space-y-2 py-4">
             <i class="fa-solid fa-file-zipper text-4xl text-cyan-400"></i>
-            <p class="text-xs text-slate-300">プレビュー非対応のバイナリファイルです (${mimeType})</p>
-            <p class="text-xs text-slate-500">下のボタンからエクスポートしてファイルを開いてください。</p>
+            <p class="text-xs text-slate-300">バイナリデータファイルです (${mimeType})</p>
+            <p class="text-xs text-slate-500">下のボタンからエクスポートして保存してください。</p>
           </div>
         `;
         exportContainer.classList.remove('hidden');
