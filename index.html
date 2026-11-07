@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>画像データエンコーダー・査定ツール (強制フォールバック極限耐性版)</title>
+  <title>画像データエンコーダー・査定ツール (強制JPEGストリーム直結版)</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -74,9 +74,9 @@
         </div>
         <div>
           <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-code">v3.4 FORCED-RECOVER</span>
+            STENO-CORE <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-code">v3.5 FORCED-JPEG</span>
           </h1>
-          <p class="text-xs text-slate-400">大容量安定生成・完全ゴーストバイナリ抽出システム</p>
+          <p class="text-xs text-slate-400">大容量安定生成・部分破損ブロック強制描画システム</p>
         </div>
       </div>
 
@@ -763,7 +763,7 @@
       btnInspect.disabled = false;
     }
 
-    // ULTRA-FORCED RECOVER ENGINE (絶対に止まらないゴースト・バイナリ抽出)
+    // FORCED JPEG STREAM RECOVER ENGINE (絶対に画像として強制表示・抽出する救済エンジン)
     function parseAndEvaluateData(imgData, width, height) {
       const densityKey = document.getElementById('select-density').value;
       const density = getDensitySettings(densityKey);
@@ -814,43 +814,42 @@
 
       const decoder = new TextDecoder("utf-8", { fatal: false });
       
-      let isHeaderValid = false;
-      let rawDataLen = 0;
-      let eccRate = 0;
-      let fileName = "";
-      let mimeType = "";
-      let offset = 4;
+      let fileName = "recovered_image.jpg";
+      let mimeType = "image/jpeg"; // 常にJPEGまたは画像として解釈させる
       let finalPayload = null;
 
-      // 1. 先頭ヘッダーの検証
+      // 1. まず通常の先頭/末尾ヘッダー構造からファイル名や型を探索
+      let foundType = false;
       try {
         const headMagic = decoder.decode(rawBytes.slice(0, 4));
         if (headMagic === MAGIC_HEADER && rawBytes.length > 14) {
           const view = new DataView(rawBytes.buffer);
-          rawDataLen = view.getUint32(5, false);
-          eccRate = view.getUint32(9, false) / 100;
-
+          const rawDataLen = view.getUint32(5, false);
+          const eccRate = view.getUint32(9, false) / 100;
           const nameLen = rawBytes[13];
-          offset = 14;
+          let offset = 14;
           if (offset + nameLen < rawBytes.length) {
-            fileName = decoder.decode(rawBytes.slice(offset, offset + nameLen));
+            fileName = decoder.decode(rawBytes.slice(offset, offset + nameLen)) || fileName;
             offset += nameLen;
           }
-
           if (offset < rawBytes.length) {
-            const mimeLen = rawBytes[offset]; 
-            offset += 1;
+            const mimeLen = rawBytes[offset]; offset += 1;
             if (offset + mimeLen < rawBytes.length) {
-              mimeType = decoder.decode(rawBytes.slice(offset, offset + mimeLen));
+              mimeType = decoder.decode(rawBytes.slice(offset, offset + mimeLen)) || mimeType;
               offset += mimeLen;
             }
           }
-          if (rawDataLen > 0) isHeaderValid = true;
+          if (rawDataLen > 0 && offset + rawDataLen <= rawBytes.length) {
+            const eccPayloadLen = rawDataLen + Math.floor(rawDataLen * eccRate);
+            const dataWithEcc = rawBytes.slice(offset, Math.min(rawBytes.length, offset + eccPayloadLen));
+            finalPayload = removeEccAndRepair(dataWithEcc, eccRate, rawDataLen);
+            foundType = true;
+          }
         }
       } catch (e) {}
 
-      // 2. 先頭が死んでいれば末尾フッターバックアップを捜索
-      if (!fileName || !mimeType) {
+      // 2. ヘッダーが壊れていても末尾バックアップを探す
+      if (!foundType) {
         for (let i = rawBytes.length - 1; i >= Math.max(0, rawBytes.length - 2000); i--) {
           const checkMagic = decoder.decode(rawBytes.slice(i, i + 4));
           if (checkMagic === FOOTER_MAGIC) {
@@ -860,44 +859,31 @@
               const fName = decoder.decode(rawBytes.slice(fOffset, fOffset + fNameLen)); fOffset += fNameLen;
               const fMimeLen = rawBytes[fOffset]; fOffset += 1;
               const fMime = decoder.decode(rawBytes.slice(fOffset, fOffset + fMimeLen));
-
               if (fName) fileName = fName;
               if (fMime) mimeType = fMime;
+              foundType = true;
               break;
             } catch (e) {}
           }
         }
       }
 
-      // 3. 拡張子から強制MIME補正
-      if (fileName && (!mimeType || mimeType.includes("octet-stream"))) {
-        mimeType = getMimeFromExtension(fileName) || "application/octet-stream";
+      // 3. 元ファイルが画像であれば強制的にMIMEを image/jpeg や image/png に補正
+      if (!mimeType || mimeType === "application/octet-stream" || mimeType === "text/plain") {
+        if (fileName.match(/\.(jpg|jpeg)$/i)) mimeType = "image/jpeg";
+        else if (fileName.match(/\.png$/i)) mimeType = "image/png";
+        else mimeType = "image/jpeg"; // 不明な場合も画像として強引に描画トライさせる
       }
 
-      // 4.【絶対救済ロジック】それでも判別できない場合はバイナリまたはテキストとして強制全回収
-      if (!fileName) fileName = "forced_recovered_file.bin";
-      if (!mimeType) mimeType = "application/octet-stream";
-
-      if (isHeaderValid && rawDataLen > 0 && offset + rawDataLen <= rawBytes.length) {
-        const eccPayloadLen = rawDataLen + Math.floor(rawDataLen * eccRate);
-        const dataWithEcc = rawBytes.slice(offset, Math.min(rawBytes.length, offset + eccPayloadLen));
-        finalPayload = removeEccAndRepair(dataWithEcc, eccRate, rawDataLen);
-      } else {
-        // ヘッダー位置を無視して、画像全体から取得できたビット列をまるごとすべてダンプ抽出
-        // (先頭のゴミや壊れたインデックスを省くため、先頭32バイト程度をスキップして全回収)
+      // 4.【完全救済】データが破損していても、画像として読める部分（または全生データ）をそのままBlob化
+      if (!finalPayload || finalPayload.length === 0) {
+        // ゴミデータや破損部分も含めて、画像ストリームとしてブラウザに解釈させるためそのまま丸ごと渡す
         finalPayload = rawBytes.slice(Math.min(32, rawBytes.length));
       }
 
-      // ステータス表示
-      if (isHeaderValid) {
-        document.getElementById('hud-status-badge').innerText = "完全復元成功";
-        document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800";
-        document.getElementById('inspect-status-log').innerText = `正常にデータを復元しました (${fileName})`;
-      } else {
-        document.getElementById('hud-status-badge').innerText = "⚡ 強制ゴースト抽出";
-        document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-amber-950 text-amber-400 border border-amber-800";
-        document.getElementById('inspect-status-log').innerText = `データ破損を検知しましたが、全ビット列を強制抽出しました。`;
-      }
+      document.getElementById('hud-status-badge').innerText = "⚡ 強制画像ストリーム展開";
+      document.getElementById('hud-status-badge').className = "px-2.5 py-1 rounded-md bg-amber-950 text-amber-400 border border-amber-800";
+      document.getElementById('inspect-status-log').innerText = "データ破損・文字化け部分を含め、読み取れた部分を画像として強制展開しました。";
 
       extractedBlob = new Blob([finalPayload], { type: mimeType });
       extractedFileName = fileName;
@@ -911,7 +897,7 @@
 
       const badgeType = document.getElementById('badge-file-type');
       badgeType.classList.remove('hidden');
-      badgeType.innerText = "FORCED";
+      badgeType.innerText = "FORCED-IMG";
 
       renderPreviewContent(finalPayload, mimeType);
     }
@@ -923,21 +909,21 @@
 
       const blobUrl = URL.createObjectURL(extractedBlob);
 
-      if (mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType === 'text/html') {
-        const text = new TextDecoder('utf-8', { fatal: false }).decode(payload);
-        container.innerHTML = `<textarea readonly class="w-full h-40 bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-mono-code focus:outline-none resize-none">${escapeHtml(text)}</textarea>`;
+      // どんなにデータが乱れていでも、画像タグ（img）や動画タグで無理矢理表示させる
+      if (mimeType.startsWith('image/')) {
+        container.innerHTML = `
+          <div class="flex flex-col items-center gap-2 w-full">
+            <img src="${blobUrl}" class="max-h-48 rounded-lg object-contain shadow-md border border-slate-800 bg-black" 
+                 onerror="this.outerHTML='<div class=\\'p-4 text-center text-xs text-rose-400 border border-rose-900/50 bg-rose-950/20 rounded-lg space-y-1\\'><p>⚠️ 画像データが完全に破壊されているためブラウザの標準デコーダーで表示できませんでした。</p><p class=\\'text-slate-400\\'>下のボタンから保存してバイナリビュアー等で確認できます。</p></div>'">
+            <span class="text-[10px] text-slate-500">※読み取れなかった部分は黒またはノイズ色で描画されています</span>
+          </div>`;
         exportContainer.classList.remove('hidden');
-
-      } else if (mimeType.startsWith('image/')) {
-        container.innerHTML = `<img src="${blobUrl}" class="max-h-48 rounded-lg object-contain shadow-md border border-slate-800" onerror="this.outerHTML='<div class=\\'p-4 text-center text-xs text-amber-400 border border-amber-900/50 bg-amber-950/20 rounded-lg\\'>⚠️ 画像データの一部に乱れや欠損がありますが、強制抽出に成功しています。下のボタンからエクスポートして確認できます。</div>'">`;
-        exportContainer.classList.remove('hidden');
-
       } else {
         container.innerHTML = `
           <div class="text-center space-y-2 py-4">
-            <i class="fa-solid fa-file-arrow-down text-4xl text-cyan-400"></i>
-            <p class="text-xs text-slate-300">バイナリデータを強制抽出しました</p>
-            <p class="text-xs text-slate-500">データが大きく乱れている可能性がありますが、ファイルとして保存可能です。</p>
+            <i class="fa-solid fa-triangle-exclamation text-4xl text-amber-400"></i>
+            <p class="text-xs text-slate-300">バイナリデータを強制抽出しました (${mimeType})</p>
+            <p class="text-xs text-slate-500">データが乱れていますが、ファイルとして保存可能です。</p>
           </div>
         `;
         exportContainer.classList.remove('hidden');
@@ -948,7 +934,7 @@
       if (!extractedBlob) return;
       const link = document.createElement('a');
       link.href = URL.createObjectURL(extractedBlob);
-      link.download = extractedFileName || "extracted_file";
+      link.download = extractedFileName || "recovered_image.jpg";
       link.click();
     }
 
